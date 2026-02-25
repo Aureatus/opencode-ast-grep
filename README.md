@@ -4,6 +4,8 @@ OpenCode plugin that provides AST-aware search and replace tools backed by ast-g
 
 This project extracts and packages the ast-grep plugin logic from `hive/.opencode/plugin/ast-grep` into a standalone, reusable OpenCode plugin.
 
+Implementation note: this package was largely bootstrapped from the Oh My OpenCode ast-grep tool implementation, then adapted into a standalone npm plugin with release automation and local/npm test modes.
+
 ## What it does
 
 - Exposes two custom tools:
