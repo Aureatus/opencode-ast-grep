@@ -1,6 +1,6 @@
 {
   "name": "opencode-ast-grep",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenCode plugin exposing AST-aware search and replace tools powered by ast-grep",
   "packageManager": "bun@1.2.22",
   "type": "module",
