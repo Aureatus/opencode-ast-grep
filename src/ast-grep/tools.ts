@@ -1,0 +1,145 @@
+import { tool } from "@opencode-ai/plugin/tool";
+import { runSg } from "./cli";
+import { CLI_LANGUAGES } from "./constants";
+import type { CliLanguage } from "./types";
+import { formatReplaceResult, formatSearchResult } from "./utils";
+
+const FUNCTION_PATTERN_HINT_REGEX =
+  /^(export\s+)?(async\s+)?function\s+\$[A-Z_]+\s*$/iu;
+
+const showOutputToUser = (context: unknown, output: string): void => {
+  const ctx = context as {
+    metadata?: (input: { metadata: { output: string } }) => void;
+  };
+  ctx.metadata?.({ metadata: { output } });
+};
+
+const getEmptyResultHint = (
+  pattern: string,
+  lang: CliLanguage
+): string | null => {
+  const src = pattern.trim();
+
+  if (lang === "python") {
+    if (src.startsWith("class ") && src.endsWith(":")) {
+      const withoutColon = src.slice(0, -1);
+      return `\n\nHint: Remove trailing colon. Try: "${withoutColon}"`;
+    }
+    if (
+      (src.startsWith("def ") || src.startsWith("async def ")) &&
+      src.endsWith(":")
+    ) {
+      const withoutColon = src.slice(0, -1);
+      return `\n\nHint: Remove trailing colon. Try: "${withoutColon}"`;
+    }
+  }
+
+  if (
+    ["javascript", "typescript", "tsx"].includes(lang) &&
+    FUNCTION_PATTERN_HINT_REGEX.test(src)
+  ) {
+    return '\n\nHint: Function patterns need params and body. Try "function $NAME($$$) { $$$ }"';
+  }
+
+  return null;
+};
+
+export const ast_grep_search = tool({
+  description:
+    "Search code patterns across filesystem using AST-aware matching. Supports 25 languages. " +
+    "Use meta-variables: $VAR (single node), $$$ (multiple nodes). " +
+    "Patterns must be complete AST nodes (valid code). " +
+    "For functions, include params and body: 'export async function $NAME($$$) { $$$ }' not 'export async function $NAME'.",
+  args: {
+    pattern: tool.schema
+      .string()
+      .describe(
+        "AST pattern with meta-variables ($VAR, $$$). Must be a complete AST node."
+      ),
+    lang: tool.schema.enum(CLI_LANGUAGES).describe("Target language"),
+    paths: tool.schema
+      .array(tool.schema.string())
+      .optional()
+      .describe("Paths to search (default: ['.'])"),
+    globs: tool.schema
+      .array(tool.schema.string())
+      .optional()
+      .describe("Include/exclude globs (prefix ! to exclude)"),
+    context: tool.schema
+      .number()
+      .optional()
+      .describe("Context lines around match"),
+  },
+  execute: async (args, context) => {
+    try {
+      const result = await runSg({
+        pattern: args.pattern,
+        lang: args.lang as CliLanguage,
+        paths: args.paths,
+        globs: args.globs,
+        context: args.context,
+      });
+
+      let output = formatSearchResult(result);
+
+      if (result.matches.length === 0 && !result.error) {
+        const hint = getEmptyResultHint(args.pattern, args.lang as CliLanguage);
+        if (hint) {
+          output += hint;
+        }
+      }
+
+      showOutputToUser(context, output);
+      return output;
+    } catch (error) {
+      const output = `Error: ${error instanceof Error ? error.message : String(error)}`;
+      showOutputToUser(context, output);
+      return output;
+    }
+  },
+});
+
+export const ast_grep_replace = tool({
+  description:
+    "Replace code patterns across filesystem with AST-aware rewriting. " +
+    "Dry-run by default. Use meta-variables in rewrite to preserve matched content. " +
+    "Example: pattern='console.log($MSG)' rewrite='logger.info($MSG)'.",
+  args: {
+    pattern: tool.schema.string().describe("AST pattern to match"),
+    rewrite: tool.schema
+      .string()
+      .describe("Replacement pattern (can use $VAR from pattern)"),
+    lang: tool.schema.enum(CLI_LANGUAGES).describe("Target language"),
+    paths: tool.schema
+      .array(tool.schema.string())
+      .optional()
+      .describe("Paths to search"),
+    globs: tool.schema
+      .array(tool.schema.string())
+      .optional()
+      .describe("Include/exclude globs"),
+    dryRun: tool.schema
+      .boolean()
+      .optional()
+      .describe("Preview changes without applying (default: true)"),
+  },
+  execute: async (args, context) => {
+    try {
+      const result = await runSg({
+        pattern: args.pattern,
+        rewrite: args.rewrite,
+        lang: args.lang as CliLanguage,
+        paths: args.paths,
+        globs: args.globs,
+        updateAll: args.dryRun === false,
+      });
+      const output = formatReplaceResult(result, args.dryRun !== false);
+      showOutputToUser(context, output);
+      return output;
+    } catch (error) {
+      const output = `Error: ${error instanceof Error ? error.message : String(error)}`;
+      showOutputToUser(context, output);
+      return output;
+    }
+  },
+});
