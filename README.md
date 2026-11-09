@@ -22,7 +22,7 @@ Add the plugin package to your OpenCode config:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-ast-grep"]
+  "plugins": ["opencode-ast-grep"]
 }
 ```
 
