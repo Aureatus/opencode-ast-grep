@@ -1,5 +1,4 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Plugin } from "@opencode/plugin";
 
-export declare const AstGrepPlugin: Plugin;
-
-export default AstGrepPlugin;
+declare const plugin: ReturnType<typeof Plugin.define>;
+export default plugin;
